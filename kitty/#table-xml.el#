@@ -1,0 +1,619 @@
+;; etXML: table-xml.el  
+;; Version: 0.47
+;; Author: Qianli Liao
+;; Email : liao500km [at] gmail [dot] com
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; LICENSE
+;;
+;;    This program is free software: you can redistribute it and/or modify
+;;    it under the terms of the GNU General Public License as published by
+;;    the Free Software Foundation, either version 3 of the License, or
+;;    (at your option) any later version.
+;;
+;;    This program is distributed in the hope that it will be useful,
+;;    but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;;    GNU General Public License for more details.
+;;
+;;    You should have received a copy of the GNU General Public License
+;;    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defvar kitti-image-root)
+(setq kitti-image-root "/home/crystal/kitti/train/image_2/")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;  Documentation for KITTI users:
+;;
+;;  UPDATE: For KITTI users, you may find  `br-dired-kitti-label-to-xml' useful
+;;  Usage for KITTI dataset (M-x means Alt+x):
+;;  (1) open this file in emacs.
+;;  (2) modify the above (setq kitti-image-root "/home/user/path-to-kitti-root/training/image/");
+;;      to your path to KITTI image root
+;;  (3) Run M-x eval-buffer or (load-file "path-to-your/table-xml.el") to load all the functions in
+;;      this file as well as the kitti-image-root path (after you have changed it to the correct path).
+;;  (4) M-x dired  (go to label folder of KITTI)
+;;  (5) `dired-mark' or `dired-mark-files-regexp' function to mark the label files that you want to convert to XML
+;;      Note: do not mark too many at a time. About 2000 files a time would be good. I experienced some crashes 
+;;      and memory problems with too many files at a time. It's probably due to an emacs internal problem.
+;;  (6) M-x `br-dired-kitti-label-to-xml'
+;;  (7) xml files will be created in ./xml folder
+;;  (optional) change function `etxml-KITTI-print-buffer-to-xml' and etxml-KITTI-dataset-schema to fit
+;;             your need. Read the below advanced tutorial if you want to know how it works. If you
+;;             want to customize the output XML file to some other formats, modify etxml-KITTI-dataset-schema
+;;             variable below.
+;;
+;;
+;;  General Documentation: Under Construction ...
+;;  Definition: etXML Schema is a simulated lisp language that serves as a formatting rule for the output XML files.
+;;  Basically, you can write a etXML schema and run it with `etxml-print-current-line-to-xml' to convert the
+;;  current line to a XML buffer. For details, see documentations before each function.
+;;
+;;  Tips: (1) You may start from modifying the etxml-test-schema to develop your schema.
+;;        (2) You can use `etxml-test' to test the etxml-test-schema with a single line.
+;;        (3) See the tutorial below for example:
+;;        (4) The backslash (\) before quotes (") in `defvar' or `setq' is required by emacs to escape the ".
+;;            If you want to interactively input a schema from minibuffer, you need to remove the backslashes. 
+;;
+;;  Example: Converting the object detection and orientation estimation labels of KITTI Vision Benchmark Suite
+;;  to PASCAL VOC XML files (or any format you want). 
+;;
+;;  The label for an image in KITTI looks like this:
+;; 
+;; Pedestrian 0.00 0 -0.20 712.40 143.00 810.73 307.92 1.89 0.48 1.20 1.84 1.47 8.41 0.01
+;; Truck 0.00 0 -1.57 599.41 156.40 629.75 189.25 2.85 2.63 12.34 0.47 1.49 69.44 -1.56
+;; Car 0.00 0 1.85 387.63 181.54 423.81 203.12 1.67 1.87 3.69 -16.53 2.39 58.49 1.57
+;; Cyclist 0.00 3 -1.65 676.60 163.95 688.98 193.93 1.86 0.60 2.02 4.59 1.32 45.84 -1.55
+;; Misc 0.00 0 -1.82 804.79 167.34 995.43 327.94 1.63 1.48 2.37 3.23 1.59 8.55 -1.47
+;; Car 0.00 0 -1.67 657.39 190.13 700.07 223.39 1.41 1.58 4.36 3.18 2.27 34.38 -1.58
+;; Car 0.00 0 1.55 614.24 181.78 727.31 284.77 1.57 1.73 4.15 1.00 1.75 13.22 1.62
+;;
+;; The goal xml file format is like this: (PASCAL VOC challenge XML format)
+;; 
+;;<?xml version="1.0" encoding="UTF-8" ?>
+;;<annotations>
+;;  <folder>/home/user/path-to-kitti-root/training/image/</folder>
+;;  <filename>000000.png</filename>
+;;  <size>
+;;    <width>1224</width>
+;;    <height>370</height>
+;;    <depth>3</depth>
+;;  </size>
+;;  <object>
+;;    <name>Pedestrian</name>
+;;    <truncated>0</truncated>
+;;    <occluded>0</occluded>
+;;    <alpha>-0.20</alpha>
+;;    <bndbox>
+;;      <xmin>712.40</xmin>
+;;      <ymin>143.00</ymin>
+;;      <xmax>810.73</xmax>
+;;      <ymax>307.92</ymax>
+;;    </bndbox>
+;;    <dimensions>
+;;      <height>1.89</height>
+;;      <width>0.48</width>
+;;      <length>1.20</length>
+;;    </dimensions>
+;;    <location>
+;;      <x>1.84</x>
+;;      <y>1.47</y>
+;;      <z>8.41</z>
+;;    </location>
+;;    <rotation_y>0.01</rotation_y>
+;;    <property>-0.20,0.00,0</property>
+;;  </object>
+;;  <object>
+;;  .
+;;  .
+;;  .
+;;  </object>
+;; <object>
+;;  .
+;;  .
+;;  .
+;;  </object>
+;;</annotations> 
+;;
+;; We can simply write a etXML schema to interpret every line of the
+;; table to generate the above XML file. The etXML schema is basically
+;; a simulated emacs lisp language. You can look at the brief
+;; introduction below to learn how to use it.
+;;
+;; The etXML schema for the above XML file is as follows:
+;;  "(\"object\"     (\"name\" @0@) (\"truncated\" (round-with-threshold (string-to-number @1@ ) 0.07)  ) (\"occluded\" @2@) (\"alpha\" @3@) (\"bndbox\" (\"xmin\" @4@) (\"ymin\" @5@) (\"xmax\" @6@) (\"ymax\" @7@)) (\"dimensions\" (\"height\" @8@) (\"width\" @9@) (\"length\" @10@)) (\"location\" (\"x\" @11@) (\"y\" @12@) (\"z\" @13@)) (\"rotation_y\" @14@) (\"property\" @3@ \",\" @1@ \",\" @2@ )  )"
+;;  
+;; We can run `etxml-test-kitti' to test this schema , 
+;; just make sure your cursor is at the desired row of table for
+;; example , put your cursor at the following line and type : M-x
+;; etxml-test-kitti (note that the ";;" in the beginning of the line
+;; will also be interpreted as part of the table, which is not
+;; desired. You can remove the ";;" before calling the etxml-test-kitti )
+;;
+;;  Car 0.00 0 1.85 387.63 181.54 423.81 203.12 1.67 1.87 3.69 -16.53 2.39 58.49 1.57        
+;;
+;;
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; etXML Schema format: basically a simulated emacs lisp language. It
+;; is very versatile. You can do any computation with emacs lisp
+;; language, or even use your personally defined emacs lisp function
+;; in the schema to format your XML output. e.g. calling some
+;; round-up functions to format your data precision.
+;;
+;; Symbols: will be evaluated to whatever it contains
+;; Functions: will be executed and replaced with the return values
+;; String in the beginning of a list : will be a xml label/tag  
+;; Other strings: will be a xml content
+;; etxml-substitute-pattern: will be replaced with the corresponding table attribute 
+;; e.g. by default @6@ is replaced with the 7th attribute of the table
+;; 
+;; Just note that all the attributes from the table are defaultly considered string,
+;;  if you want to do numerical computations ,just use (string-to-number @N@ ):
+;;  e.g. adding the first attribute with the 8th attribute:
+;; (+ (string-to-number @0@ ) (string-to-number @7@ ))
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defvar etxml-KITTI-dataset-schema )
+
+;; the schema without  (\"property\" @3@ \",\" @1@ \",\" @2@ ) 
+(setq etxml-KITTI-dataset-schema "(\"object\" (\"name\" @0@) (\"truncated\" @1@) (\"occluded\" @2@) (\"alpha\" @3@) (\"bndbox\" (\"xmin\" @4@) (\"ymin\" @5@) (\"xmax\" @6@) (\"ymax\" @7@)) (\"dimensions\" (\"height\" @8@) (\"width\" @9@) (\"length\" @10@)) (\"location\" (\"x\" @11@) (\"y\" @12@) (\"z\" @13@)) (\"rotation_y\" @14@) (\"property\" @3@ \",\" @1@ \",\" @2@ ) )")
+
+;; the difference from the above schema and this one is just   (\"property\" @3@ \",\" @1@ \",\" @2@ ) 
+(setq etxml-KITTI-dataset-schema "(\"object\"     (\"name\" @0@) (\"truncated\" (round-with-threshold (string-to-number @1@ ) 0.07)  ) (\"occluded\" @2@) (\"alpha\" @3@) (\"bndbox\" (\"xmin\" @4@) (\"ymin\" @5@) (\"xmax\" @6@) (\"ymax\" @7@)) (\"dimensions\" (\"height\" @8@) (\"width\" @9@) (\"length\" @10@)) (\"location\" (\"x\" @11@) (\"y\" @12@) (\"z\" @13@)) (\"rotation_y\" @14@) (\"property\" @3@ \",\" @1@ \",\" @2@ )  )")
+
+;;just for test purpose, you can customize this one and run  `etxml-test' to see the output
+(defvar etxml-test-schema nil "freely modify it and test this schema by calling `etxml-test' at any row of the table that you want to generate XML from and check the result in etxml-test.xml buffer   " )
+(setq etxml-test-schema "(\"object\"   (\"property\" @3@ ) \"s1 \"  (\"s2 \"  \"s3 \") ((+ (string-to-number @0@ ) (string-to-number @3@ ))   \"s2 \"  @2@ ) )")
+
+
+
+(defun etxml-string-to-list-object ( string)
+  ;;just in case there's remaining etxml-substitute-pattern
+  (setq string (replace-regexp-in-string etxml-substitute-pattern (concat "\"" etxml-substitute-pattern "\"") string) )
+  ;;convert to list object
+  (read string)
+  )
+
+
+(defsubst etxml-recursively-evaluate-lisp-object (ls)
+  (progn 
+    (while (or (and (listp ls)
+		    (or (functionp (car ls))
+			(equal 'quote (car ls))
+			))
+	       (symbolp ls)
+	       )
+      (setq ls (eval ls))
+      )
+    ls
+    )
+  )
+
+(defsubst etxml-recursively-evaluate-lisp-object-return-list-or-string (ls)
+  (let ((result (etxml-recursively-evaluate-lisp-object ls)))
+    (cond
+     ((numberp result)
+      (number-to-string result))
+     ((stringp result)
+      result)
+     ((listp result)
+      result)
+     (t (error "etxml-recursively-evaluate-lisp-object-return-list-or-string: the result is not number, nor string, nor list, please check."))
+     )	       
+    )
+  )
+
+
+
+
+(defun etxml-list-to-xml (ls &optional print)
+  " This function generates a XML structure like this: <list-head> list-body </list-head>.  
+if print is t, it means that you want to print the result at the current point  in the current buffer "
+  (interactive "xInput the list: ")
+  (let ((list-head (car ls)  )
+	(list-body (cdr ls) )
+	)
+    (when (called-interactively-p)
+      (setq print (y-or-n-p "\nsDo you want to print it at the point? (type y for yes)"))
+      )
+    (if ls
+	(progn
+	  ;; allow user to apply functions in the etXML schema 
+	  (setq list-head (etxml-recursively-evaluate-lisp-object-return-list-or-string list-head) )
+	  (cond 
+	   ;;if the list-head is a list , it will be an XML label
+	   ((listp list-head)
+	    (if  print
+		(progn 
+		  (etxml-list-to-xml  list-head print)       
+		  (etxml-list-to-xml-body  list-body print)
+		  )
+	      (concat (etxml-list-to-xml  list-head print) (etxml-list-to-xml-body  list-body print))
+	      )
+	    )
+	   ((stringp list-head)
+	    (if  print
+		(progn
+		  (insert (concat "<" list-head ">\n"))
+		  (etxml-list-to-xml-body list-body print ) 
+		  (insert (concat "</" list-head ">\n"))
+		  )
+	      ;;delete some extra new lines
+	      (replace-regexp-in-string "\b" ""   (replace-regexp-in-string "\n\b" "" (concat "<" list-head ">\n"  (etxml-list-to-xml-body list-body print) "</" list-head ">\n") )  )
+	      )
+	    )
+	   )
+	  )
+      ""
+      )
+    )
+  )
+
+
+
+(defun etxml-list-to-xml-body (ls &optional print)
+  " This function just generate the contents within the XML label (excluding the label itself).
+But it may call the `etxml-list-to-xml' function when encounters
+ a list in the LS, since that will become a nested XML label. The
+ difference between this function and `etxml-list-to-xml' is that
+ it does not generate/print any label. since the list head has been
+ processed in `etxml-list-to-xml' function, the label is already
+ generated/printed. If the PRINT is t, it means that you want to print the
+ result at the current point in the current buffer "
+  (interactive "xInput the list") 
+  (let ((list-head (car ls)  )
+	(list-body (cdr ls) )
+	)
+    (when (called-interactively-p)
+      (setq print (y-or-n-p "\nsDo you want to print it at the point? (type y for yes)"))
+      )
+    (if ls
+	(progn
+	  ;; allow user to apply functions in the etXML schema 
+	  (setq list-head (etxml-recursively-evaluate-lisp-object-return-list-or-string list-head) )
+	  (cond 
+	   ;;if the list-head is a list , it will be an XML label
+	   ((listp list-head)
+	    (if  print
+		(progn 
+		  (etxml-list-to-xml  list-head print)       
+		  (etxml-list-to-xml-body  list-body print)
+		  )
+	      (concat (etxml-list-to-xml  list-head print) (etxml-list-to-xml-body  list-body print))
+	      )
+	    )	  
+	   ((stringp list-head)
+	    (if print 
+		(progn 
+		  (insert  (concat list-head " "))
+		  (etxml-list-to-xml-body list-body print) 
+		  )
+	      ;;add \b for future deleting some extra empty lines
+	      (concat "\b" list-head   (etxml-list-to-xml-body list-body print) ) 
+	      )
+	    )
+	   )
+	  )
+      ""
+      )
+    )
+  )
+
+(defun etxml-print-current-line-to-xml ( schema buffer)
+"It does not accept variable name as input. Please input the actual string of etXML schema.
+ The output buffer must exist as well. Please create one before hand. It is intended for non-interactive
+ calls from other functions. For example, see `etxml-test' for its wrapper. "
+  (interactive"sInput etxml schema? \nBOutput buffer name? ") 
+  (let ((xml-string    (etxml-list-to-xml (etxml-string-to-list-object (etxml-evaluate-schema-with-current-line-values schema))   nil) ))
+    (with-current-buffer  buffer
+      (insert xml-string  )
+      )  
+    )
+  )
+
+(defun etxml-print-region-to-xml (start end &optional schema title dest-buffer)
+  "interpret every non-empty line in the region by etxml schema and print all of them to  "
+  (interactive
+   (let* ( tmp-schema
+	   tmp-title
+	   tmp-dest-buffer
+	   )
+     (setq tmp-schema     (read-string "Input etxml schema?") ) 
+     (setq tmp-title  (read-string "Title?" )  ) 
+     (setq tmp-dest-buffer  (read-buffer "Destination buffer: " (concat (buffer-name) ".xml"))  )
+
+     (list
+      (region-beginning)
+      (region-end)
+      tmp-schema
+      tmp-title
+      tmp-dest-buffer
+      ))
+   )
+  (let ((default-buffer-name (concat (buffer-name) ".xml"))
+	(buffer-line-number (line-number-at-pos end ) ) )
+    (unless (bufferp dest-buffer)
+      (setq dest-buffer (get-buffer-create (or dest-buffer default-buffer-name)) ))
+
+    (save-excursion
+
+      (goto-char start)
+
+      (when title    (with-current-buffer dest-buffer
+		       (insert (concat "<" title ">\n"))
+		       ))
+      
+      (while (not (equal (line-number-at-pos (point)) buffer-line-number) )
+	(when (not (etxml-current-line-empty-p))
+	  (etxml-print-current-line-to-xml schema dest-buffer)
+	  )
+	(next-line)
+	
+	)
+      (when title (with-current-buffer dest-buffer
+		    (insert (concat "</" title ">")))
+	    )
+      )
+    ))
+
+(defun etxml-print-buffer-to-xml( schema title dest-buffer)
+  (interactive
+   (let* ( tmp-schema
+	   tmp-title
+	   tmp-dest-buffer
+	   )
+     (setq tmp-schema     (read-string "Input etxml schema?") ) 
+     (setq tmp-title  (read-string "Title?" )  ) 
+     (setq tmp-dest-buffer  (read-buffer "Destination buffer: " (concat (buffer-name) ".xml"))  )
+     (list
+      tmp-schema
+      tmp-title
+      tmp-dest-buffer
+      )))
+  (let ((default-buffer-name (concat (buffer-name) ".xml")) )
+    (unless (bufferp dest-buffer)
+      (setq dest-buffer (get-buffer-create (or dest-buffer default-buffer-name)) ))
+
+    (etxml-print-region-to-xml (point-min) (point-max) schema title dest-buffer)   
+    )
+  )
+
+
+(defun etxml-KITTI-print-buffer-to-xml ()
+  (interactive) 
+  (let* ((dest-buffer  (concat (buffer-name) ".xml") )
+	 (original-buffer (buffer-name))
+	 (original-file-name (file-name-sans-extension original-buffer ) )
+	 (image-file-path (concat kitti-image-root original-file-name  ".png"))
+	 (image-dims (image-size (create-image image-file-path) t) )
+	 )
+    (unless (bufferp dest-buffer)
+      (setq dest-buffer (get-buffer-create  dest-buffer) ) )
+    (with-current-buffer  dest-buffer
+      (insert "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n")      
+      (insert   (concat "<annotations>\n<folder>" kitti-image-root "</folder>\n"  ) )
+      (insert (concat "<filename>" original-file-name  ".png</filename>\n"))
+      (insert (concat "<size>\n<width>" (number-to-string (car image-dims)) "</width>\n<height>" (number-to-string  (cdr image-dims)) "</height>\n<depth>3</depth>\n</size>\n" ))
+      )
+    (etxml-print-buffer-to-xml etxml-KITTI-dataset-schema nil dest-buffer )
+    (with-current-buffer dest-buffer
+      (insert "</annotations>")
+      )
+    )
+  )
+
+
+(defmacro br-dired-do-no-save ( &rest subexprs)
+  (declare (debug t))
+  (let ((counter-symbol (make-symbol "counter")))
+    `(save-excursion
+       (setq ,counter-symbol 0)
+       (dolist (f (dired-get-marked-files))
+	 (find-file f)
+	 ,@subexprs
+	 (kill-buffer)      
+	 (setq ,counter-symbol (+ ,counter-symbol 1))
+	 )
+       ;;       (message "Done: %d file(s)" ,counter-symbol) 
+       )
+    )
+  )
+
+(defun br-dired-kitti-label-to-xml ()
+  (interactive) 
+  (make-directory "./xml" t)
+  (br-dired-do-no-save 
+   (let ((old-buffer (current-buffer)))
+     (etxml-KITTI-print-buffer-to-xml )
+     (switch-to-buffer (concat (buffer-name) ".xml"))
+     ;;     (kill-region (point-min) (point-max))
+     (write-file (concat "./xml/" (buffer-name) ) )
+     (kill-buffer)
+     (switch-to-buffer old-buffer)
+     )
+   )
+  )
+
+
+
+
+
+
+(defun etxml-current-line-empty-p ()
+  "return t if the current line is empty"
+  (etxml-string-has-only-space-tab-or-new-line-p (buffer-substring-no-properties (point-at-bol) (point-at-eol)))
+  )
+(defun etxml-string-has-only-space-tab-or-new-line-p (string)
+  (setq string (replace-regexp-in-string "[ \t\n]" "" string))
+  (if (equal string "")
+      t
+    nil)
+  )
+
+
+(defvar etxml-delimiter " " "NOTE: space and tab are different. If you use space, then the TAB is NOT considered as delimiter. ")
+(defvar etxml-substitute-pattern "@")
+(setq etxml-delimiter " ")
+(setq etxml-substitute-pattern "@")
+
+
+
+(defsubst etxml-empty-string-or-nil-p (string)
+  "return t if the string is either empty or nil"
+  (or (equal "" string) (null string))
+  )
+
+
+(defun etxml-read-current-line-values-to-list ()
+  (interactive) 
+  (save-excursion
+    (let ((result-list nil)
+	  (finish-up nil)
+	  (region-start-point (point-at-bol) )
+	  (region-end-point nil) )  
+      (goto-char (point-at-bol)) 
+      (while (and (or (search-forward etxml-delimiter (point-at-eol) 10)  (eolp)   )
+		  (not finish-up))
+
+	(if (eolp)
+	    (progn
+	      ;;copy region ends at the end of line
+	      (setq region-end-point (point))
+	      (setq finish-up t) )
+	  (progn
+	    ;;copy region ends at the very previous one character before the delimiter 
+	    (setq region-end-point  (- (point) 1) )
+	    )
+	  )
+	(setq result-list (append result-list (list (buffer-substring-no-properties region-start-point region-end-point)) )  )
+	
+	;;skip successive delimiters, if any
+	(while (equal (char-after (point))  (string-to-char etxml-delimiter) )
+	  (goto-char  (+ (point) 1) )
+	  )
+	;;set the 
+	(setq region-start-point (point))
+	)
+
+      (print (etxml-delete-blank-strings-in-list  result-list))
+      )
+    )
+  )
+
+
+(defun etxml-delete-blank-strings-in-list (ls)
+  (let ((ls2 nil))
+    (while (car ls)
+      (when (not (etxml-string-has-only-space-tab-or-new-line-p (car ls)) )
+	(setq ls2 (append ls2 (list (car ls)) ))
+	)
+      (setq ls (cdr ls))
+      )
+    ls2
+    )
+  )
+
+(defun round-with-threshold (num threshold)
+  "round to the ceiling of num if num - floor(num)  > threshold ,
+ otherwise round to floor. (I use > since there's some unavoidable
+ numerical error that will cause >= virtually the same as >,
+ debug by arguments like 51.4 and 0.4 will give you the
+ intuition."
+  (let ( (flr (floor num)) )
+    (if (> (- num flr   ) threshold)
+	(+ flr 1)
+      flr
+      )
+    )
+  )
+
+(defun etxml-test ()
+  "just for your test purpose"
+  (interactive) 
+  (let ((dest-buffer   "etxml-test.xml" ))
+    (unless (bufferp  dest-buffer)
+      (get-buffer-create dest-buffer)
+      (with-current-buffer dest-buffer
+	(kill-region (point-min) (point-max) )
+	)
+      )
+    ( etxml-print-current-line-to-xml etxml-test-schema dest-buffer)
+    )
+  )
+
+
+(defun etxml-test-kitti ()
+  "just for your test purpose"
+  (interactive) 
+  (let ((dest-buffer   "etxml-test-kitti.xml" ))
+    (unless (bufferp  dest-buffer)
+      (get-buffer-create dest-buffer)
+      (with-current-buffer dest-buffer
+	(kill-region (point-min) (point-max) )
+	)
+      )
+    ( etxml-print-current-line-to-xml etxml-KITTI-dataset-schema dest-buffer)
+    )
+  )
+
+
+(defun etxml-evaluate-schema-with-current-line-values (schema)
+  "plug in the values (from the current line) to the etxml schema. "
+  (interactive"sInput etxml schema?")
+  (save-excursion
+    (goto-char (point-at-bol))
+    (let* ((region-start-point (point-at-bol))
+	   (region-end-point nil)
+	   (finish-up nil)
+	   (delimiter etxml-delimiter)
+	   (substitute-pattern etxml-substitute-pattern)
+	   (current-line-value-list (etxml-read-current-line-values-to-list) )
+	   (i 0)
+	   )
+
+      (while (< i (length current-line-value-list))
+	(setq schema (replace-regexp-in-string (concat substitute-pattern (number-to-string i) substitute-pattern)
+					       (concat "\"" (nth i current-line-value-list) "\"" )
+					       schema t t))
+	(setq i (+ i 1))
+	)
+      
+      ;;   (message    schema )
+      schema
+      )
+    )
+  )
+
+
+(defun etxml-A-exists-before-B-in-string (string A B)
+  (let ( (A-IDX  (string-match A string) )
+	 (B-IDX  (string-match B string) )
+	 )
+    (cond
+     ;; A does not exist, A cannot be before B
+     ((and (null A-IDX) B-IDX)
+      nil)
+     ;; A exists , B does not exist,  A is before B
+     ((and A-IDX (null B-IDX) )
+      t)
+     ;; A and B neither exist , A cannot be before B
+     ((and (null A-IDX) (null B-IDX))
+      nil)
+     ;; A and B both exists 
+     (t
+      (if (< A-IDX B-IDX)
+	  t
+	nil)
+      )
+     )
+    )
+  )
+
+
